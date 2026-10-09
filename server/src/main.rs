@@ -540,25 +540,28 @@ impl Index {
         let interp = interp.filter(|(d, _, _)| *d < max_dist);
         let street = street.filter(|(d, _)| *d < max_dist);
 
-        // Keep a reference to the matched address point so we can fall back to
-        // its addr:city / addr:suburb / addr:postcode tags below.
-        let matched_addr = addr.map(|(_, p)| p);
+        // Only use explicit address tags when that address supplies the result.
+        let mut matched_addr = None;
 
         let house = [
-            addr.map(|(d, p)| (d, p.street_id, Cow::Borrowed(self.get_string(p.housenumber_id)))),
-            interp.map(|(d, iw, n)| (d, iw.street_id, Cow::Owned(n.to_string()))),
+            addr.map(|(d, p)| (d, p.street_id, Cow::Borrowed(self.get_string(p.housenumber_id)), Some(p))),
+            interp.map(|(d, iw, n)| (d, iw.street_id, Cow::Owned(n.to_string()), None)),
         ]
         .into_iter()
         .flatten()
         .min_by(|a, b| a.0.partial_cmp(&b.0).unwrap());
 
-        if let Some((hd, hs, hn)) = house {
+        if let Some((hd, hs, hn, point)) = house {
             if let Some((_, way)) = street.filter(|(sd, _)| *sd < hd) {
                 road = Some(self.get_string(way.name_id));
-                if hs == way.name_id { house_number = Some(hn); }
+                if hs == way.name_id {
+                    house_number = Some(hn);
+                    matched_addr = point;
+                }
             } else {
                 road = Some(self.get_string(hs));
                 house_number = Some(hn);
+                matched_addr = point;
             }
         } else if let Some((_, way)) = street {
             road = Some(self.get_string(way.name_id));
@@ -568,7 +571,7 @@ impl Index {
             return Address::default();
         }
 
-        // Final fallback: addr:* tags from the matched address point
+        // Explicit addr:* tags take priority; inferred fields fill any gaps.
         let mut city = admin.city;
         let mut suburb = admin.suburb;
         let mut postcode = admin.postcode;
@@ -578,7 +581,7 @@ impl Index {
                 (&mut suburb,   p.suburb_id),
                 (&mut postcode, p.postcode_id),
             ] {
-                if slot.is_none() && id != 0 {
+                if id != 0 {
                     *slot = Some(self.get_string(id));
                 }
             }
