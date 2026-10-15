@@ -33,6 +33,7 @@ build_index() {
     level_args=""
     [ -n "$STREET_LEVEL" ] && level_args="$level_args --street-level $STREET_LEVEL"
     [ -n "$ADMIN_LEVEL" ] && level_args="$level_args --admin-level $ADMIN_LEVEL"
+    [ "$INDEX_ALL_ROADS" = "true" ] && level_args="$level_args --all-roads"
     echo "Building index..."
     build-index "$DATA_DIR/index" $files $level_args
     echo "Index built."

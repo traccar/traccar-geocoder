@@ -153,6 +153,8 @@ static std::unordered_map<uint64_t, std::vector<uint32_t>> cell_to_places;
 // --- S2 helpers ---
 
 static int kStreetCellLevel = 17;
+// --all-roads: also index unnamed roads, for road snapping
+static bool kAllRoads = false;
 static int kAdminCellLevel = 10;
 
 static std::vector<S2CellId> cover_edge(double lat1, double lng1, double lat2, double lng2) {
@@ -369,7 +371,7 @@ static std::vector<std::pair<double,double>> simplify_polygon(
 // --- Highway filter ---
 
 static const std::vector<std::string> kExcludedHighways = {
-    "footway", "path", "track", "steps", "cycleway",
+    "footway", "path", "steps", "cycleway",
     "bridleway", "construction"
 };
 
@@ -533,7 +535,12 @@ public:
         const char* highway = way.tags()["highway"];
         if (highway && is_included_highway(highway)) {
             const char* name = way.tags()["name"];
-            if (name) {
+            if (kAllRoads && (!name || !*name)) {
+                // Unnamed roads use their route number, or stay unnamed
+                // (string ID 0) and are only used for snapping
+                name = way.tags()["ref"];
+                process_highway(way, name);
+            } else if (name) {
                 process_highway(way, name);
             }
         }
@@ -696,6 +703,7 @@ private:
         interp_count_++;
     }
 
+    // name is null for unnamed roads (--all-roads)
     void process_highway(const osmium::Way& way, const char* name) {
         const auto& wnodes = way.nodes();
         if (wnodes.size() < 2) return;
@@ -717,7 +725,7 @@ private:
         WayHeader header{};
         header.node_offset = node_offset;
         header.node_count = static_cast<uint8_t>(std::min(wnodes.size(), size_t(255)));
-        header.name_id = strings.intern(name);
+        header.name_id = intern_or_zero(name);
         ways.push_back(header);
 
         std::unordered_set<uint64_t> way_cells;
@@ -1075,7 +1083,7 @@ static void write_index(const std::string& output_dir) {
 
 int main(int argc, char* argv[]) {
     if (argc < 3) {
-        std::cerr << "Usage: build-index <output-dir> <input.osm.pbf> [input2.osm.pbf ...] [--street-level N] [--admin-level N]" << std::endl;
+        std::cerr << "Usage: build-index <output-dir> <input.osm.pbf> [input2.osm.pbf ...] [--street-level N] [--admin-level N] [--all-roads]" << std::endl;
         return 1;
     }
 
@@ -1087,6 +1095,8 @@ int main(int argc, char* argv[]) {
             kStreetCellLevel = std::atoi(argv[++i]);
         } else if (arg == "--admin-level" && i + 1 < argc) {
             kAdminCellLevel = std::atoi(argv[++i]);
+        } else if (arg == "--all-roads") {
+            kAllRoads = true;
         } else {
             input_files.push_back(arg);
         }
