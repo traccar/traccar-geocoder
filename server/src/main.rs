@@ -35,8 +35,6 @@ fn cell_neighbors_at_level(cell_id: u64, level: u64) -> Vec<u64> {
 #[derive(Clone, Copy)]
 struct WayHeader {
     node_offset: u32,
-    // Little-endian u16 in the original count byte and the padding byte after
-    // it; indexes built before have a zero high byte (255-node limit)
     node_count: u16,
     name_id: u32,
 }
@@ -57,23 +55,11 @@ struct AddrPoint {
 #[derive(Clone, Copy)]
 struct InterpWay {
     node_offset: u32,
-    node_count: u16, // little-endian, see WayHeader
+    node_count: u16,
     street_id: u32,
     start_number: u32,
     end_number: u32,
     interpolation: u8,
-}
-
-impl WayHeader {
-    fn node_count(&self) -> usize {
-        u16::from_le(self.node_count) as usize
-    }
-}
-
-impl InterpWay {
-    fn node_count(&self) -> usize {
-        u16::from_le(self.node_count) as usize
-    }
 }
 
 #[repr(C)]
@@ -334,7 +320,7 @@ impl Index {
 
                 let way = &all_ways[id as usize];
                 let offset = way.node_offset as usize;
-                let count = way.node_count();
+                let count = u16::from_le(way.node_count) as usize;
                 let nodes = &all_street_nodes[offset..offset + count];
 
                 for i in 0..nodes.len() - 1 {
@@ -357,7 +343,7 @@ impl Index {
                 if iw.start_number == 0 || iw.end_number == 0 { return; }
 
                 let offset = iw.node_offset as usize;
-                let count = iw.node_count();
+                let count = u16::from_le(iw.node_count) as usize;
                 let nodes = &all_interp_nodes[offset..offset + count];
 
                 let mut total_len: f64 = 0.0;
@@ -654,7 +640,7 @@ impl Index {
 
                 let way = &all_ways[id as usize];
                 let offset = way.node_offset as usize;
-                let count = way.node_count();
+                let count = u16::from_le(way.node_count) as usize;
                 let nodes = &all_street_nodes[offset..offset + count];
 
                 for i in 0..nodes.len() - 1 {

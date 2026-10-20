@@ -40,10 +40,6 @@
 
 // --- Binary format structs ---
 
-// node_count is a little-endian u16 (htole16/le16toh) occupying the original
-// count byte (low) and the padding byte after it (high), so the struct size is
-// unchanged. Indexes built before have a zero high byte and keep working, with
-// their old limit of 255 nodes per way. OSM ways have at most 2000 nodes.
 struct WayHeader {
     uint32_t node_offset;
     uint16_t node_count;
@@ -62,7 +58,7 @@ struct AddrPoint {
 
 struct InterpWay {
     uint32_t node_offset;
-    uint16_t node_count; // little-endian, see WayHeader
+    uint16_t node_count;
     uint32_t street_id;
     uint32_t start_number;
     uint32_t end_number;
