@@ -37,8 +37,7 @@ struct WayHeader {
     node_offset: u32,
     // Little-endian u16 in the original count byte and the padding byte after
     // it; indexes built before have a zero high byte (255-node limit)
-    node_count_lo: u8,
-    node_count_hi: u8,
+    node_count: u16,
     name_id: u32,
 }
 
@@ -58,8 +57,7 @@ struct AddrPoint {
 #[derive(Clone, Copy)]
 struct InterpWay {
     node_offset: u32,
-    node_count_lo: u8, // little-endian u16, see WayHeader
-    node_count_hi: u8,
+    node_count: u16, // little-endian, see WayHeader
     street_id: u32,
     start_number: u32,
     end_number: u32,
@@ -68,13 +66,13 @@ struct InterpWay {
 
 impl WayHeader {
     fn node_count(&self) -> usize {
-        u16::from_le_bytes([self.node_count_lo, self.node_count_hi]) as usize
+        u16::from_le(self.node_count) as usize
     }
 }
 
 impl InterpWay {
     fn node_count(&self) -> usize {
-        u16::from_le_bytes([self.node_count_lo, self.node_count_hi]) as usize
+        u16::from_le(self.node_count) as usize
     }
 }
 

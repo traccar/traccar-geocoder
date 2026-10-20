@@ -17,6 +17,13 @@
 #include <osmium/handler/node_locations_for_ways.hpp>
 #include <fcntl.h>
 #include <unistd.h>
+#ifdef __APPLE__
+#include <libkern/OSByteOrder.h>
+#define htole16(x) OSSwapHostToLittleInt16(x)
+#define le16toh(x) OSSwapLittleToHostInt16(x)
+#else
+#include <endian.h>
+#endif
 #include <osmium/index/map/sparse_file_array.hpp>
 #include <osmium/area/assembler.hpp>
 #include <osmium/area/multipolygon_manager.hpp>
@@ -33,14 +40,13 @@
 
 // --- Binary format structs ---
 
-// node_count is a little-endian u16 stored in the original count byte (low)
-// and the padding byte after it (high), so the struct size is unchanged.
-// Indexes built before have a zero high byte and keep working, with their old
-// limit of 255 nodes per way. OSM ways have at most 2000 nodes.
+// node_count is a little-endian u16 (htole16/le16toh) occupying the original
+// count byte (low) and the padding byte after it (high), so the struct size is
+// unchanged. Indexes built before have a zero high byte and keep working, with
+// their old limit of 255 nodes per way. OSM ways have at most 2000 nodes.
 struct WayHeader {
     uint32_t node_offset;
-    uint8_t node_count_lo;
-    uint8_t node_count_hi;
+    uint16_t node_count;
     uint32_t name_id;
 };
 
@@ -56,25 +62,12 @@ struct AddrPoint {
 
 struct InterpWay {
     uint32_t node_offset;
-    uint8_t node_count_lo; // little-endian u16, see WayHeader
-    uint8_t node_count_hi;
+    uint16_t node_count; // little-endian, see WayHeader
     uint32_t street_id;
     uint32_t start_number;
     uint32_t end_number;
     uint8_t interpolation;
 };
-
-template <typename T>
-static void set_node_count(T& way, size_t count) {
-    count = std::min(count, size_t(UINT16_MAX));
-    way.node_count_lo = static_cast<uint8_t>(count & 0xFF);
-    way.node_count_hi = static_cast<uint8_t>(count >> 8);
-}
-
-template <typename T>
-static uint32_t get_node_count(const T& way) {
-    return way.node_count_lo | (static_cast<uint32_t>(way.node_count_hi) << 8);
-}
 
 struct AdminPolygon {
     uint32_t vertex_offset;
@@ -679,7 +672,7 @@ private:
 
         InterpWay iw{};
         iw.node_offset = node_offset;
-        set_node_count(iw, wnodes.size());
+        iw.node_count = htole16(static_cast<uint16_t>(std::min(wnodes.size(), size_t(UINT16_MAX))));
         iw.street_id = strings.intern(street);
         iw.start_number = 0;
         iw.end_number = 0;
@@ -725,7 +718,7 @@ private:
 
         WayHeader header{};
         header.node_offset = node_offset;
-        set_node_count(header, wnodes.size());
+        header.node_count = htole16(static_cast<uint16_t>(std::min(wnodes.size(), size_t(UINT16_MAX))));
         header.name_id = strings.intern(name);
         ways.push_back(header);
 
@@ -777,7 +770,7 @@ static void resolve_interpolation_endpoints() {
 
     uint32_t resolved = 0;
     for (auto& iw : interp_ways) {
-        if (get_node_count(iw) < 2) continue;
+        if (le16toh(iw.node_count) < 2) continue;
 
         const auto& start = interp_nodes[iw.node_offset];
         CoordKey start_key{
@@ -786,7 +779,7 @@ static void resolve_interpolation_endpoints() {
         };
         auto it_start = addr_by_coord.find(start_key);
 
-        const auto& end = interp_nodes[iw.node_offset + get_node_count(iw) - 1];
+        const auto& end = interp_nodes[iw.node_offset + le16toh(iw.node_count) - 1];
         CoordKey end_key{
             static_cast<int32_t>(end.lat * 100000),
             static_cast<int32_t>(end.lng * 100000)
