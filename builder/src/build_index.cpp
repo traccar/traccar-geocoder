@@ -541,10 +541,7 @@ public:
         const char* highway = way.tags()["highway"];
         if (highway && is_included_highway(highway)) {
             const char* name = way.tags()["name"];
-            if (kAllRoads && (!name || !*name)) {
-                name = way.tags()["ref"];
-                process_highway(way, name);
-            } else if (name) {
+            if (name || kAllRoads) {
                 process_highway(way, name);
             }
         }

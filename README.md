@@ -201,7 +201,7 @@ cargo build --release --manifest-path server/Cargo.toml
 # Create index from PBF file
 ./build/build-index data-dir/index input.osm.pbf [input2.osm.pbf ...]
 
-# Also index unnamed roads for road snapping
+# Optionally, also index unnamed roads for road snapping
 ./build/build-index data-dir/index input.osm.pbf --all-roads
 
 # Start the server
@@ -220,7 +220,7 @@ cargo build --release --manifest-path server/Cargo.toml
 | `BIND_ADDR` | HTTP bind address | `0.0.0.0:3000` |
 | `DATA_DIR` | Data directory for PBF files and index | `/data` |
 | `CACHE_DIR` | ACME certificate cache directory | `acme-cache` |
-| `INDEX_ALL_ROADS` | Set to `true` to also index unnamed roads, so `/snap` works on every road (reverse geocoding still names the nearest named road) | `false` |
+| `INDEX_ALL_ROADS` | Set to `true` to also index unnamed roads for road snapping | `false` |
 
 ## License
 
