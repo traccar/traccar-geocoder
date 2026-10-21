@@ -312,8 +312,7 @@ impl Index {
                 }
             });
 
-            // Streets. Unnamed roads (name ID 0, from --all-roads indexes)
-            // are only used for snapping; addresses name the nearest named road.
+            // Streets
             Self::for_each_entry(&self.street_entries, offsets.street, |id| {
                 let slot = (id as usize) & 0x3F;
                 if seen_streets[slot] == id { return; }

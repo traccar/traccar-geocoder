@@ -160,7 +160,6 @@ static std::unordered_map<uint64_t, std::vector<uint32_t>> cell_to_places;
 // --- S2 helpers ---
 
 static int kStreetCellLevel = 17;
-// --all-roads: also index unnamed roads, for road snapping
 static bool kAllRoads = false;
 static int kAdminCellLevel = 10;
 
@@ -543,8 +542,6 @@ public:
         if (highway && is_included_highway(highway)) {
             const char* name = way.tags()["name"];
             if (kAllRoads && (!name || !*name)) {
-                // Unnamed roads use their route number, or stay unnamed
-                // (string ID 0) and are only used for snapping
                 name = way.tags()["ref"];
                 process_highway(way, name);
             } else if (name) {
@@ -710,7 +707,6 @@ private:
         interp_count_++;
     }
 
-    // name is null for unnamed roads (--all-roads)
     void process_highway(const osmium::Way& way, const char* name) {
         const auto& wnodes = way.nodes();
         if (wnodes.size() < 2) return;
