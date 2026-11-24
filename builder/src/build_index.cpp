@@ -429,6 +429,10 @@ static const std::vector<std::string> kExcludedHighways = {
     "bridleway", "construction"
 };
 
+static const std::unordered_set<std::string> kRefHighways = {
+    "motorway", "trunk", "primary", "secondary", "tertiary"
+};
+
 static bool is_included_highway(const char* value) {
     for (const auto& excluded : kExcludedHighways) {
         if (excluded == value) return false;
@@ -589,6 +593,9 @@ public:
         const char* highway = way.tags()["highway"];
         if (highway && is_included_highway(highway)) {
             const char* name = way.tags()["name"];
+            if ((!name || !*name) && kRefHighways.count(highway)) {
+                name = way.tags()["ref"];
+            }
             if (name || kAllRoads) {
                 process_highway(way, name);
             }
