@@ -18,6 +18,7 @@ use std::sync::{Arc, RwLock};
 const DEFAULT_STREET_CELL_LEVEL: u64 = 17;
 const DEFAULT_ADMIN_CELL_LEVEL: u64 = 10;
 const DEFAULT_SEARCH_DISTANCE: f64 = 75.0;
+const EARTH_RADIUS_METERS: f64 = 6_371_000.0;
 
 fn cell_id_at_level(lat: f64, lng: f64, level: u64) -> u64 {
     let ll = LatLng::from_degrees(lat, lng);
@@ -525,7 +526,7 @@ impl Index {
     // --- Combined query ---
 
     fn query(&self, lat: f64, lng: f64, search_distance: f64) -> Address<'_> {
-        let meters_to_rad = search_distance / 111_320.0;
+        let meters_to_rad = search_distance / EARTH_RADIUS_METERS;
         let max_dist = meters_to_rad * meters_to_rad;
 
         let admin = self.find_admin(lat, lng);
@@ -604,7 +605,7 @@ impl Index {
     }
 
     fn snap(&self, lat: f64, lng: f64, search_distance: f64) -> Option<Snap> {
-        let meters_to_rad = search_distance / 111_320.0;
+        let meters_to_rad = search_distance / EARTH_RADIUS_METERS;
         let max_dist = meters_to_rad * meters_to_rad;
 
         let cell = cell_id_at_level(lat, lng, self.street_cell_level);
@@ -664,7 +665,7 @@ impl Index {
         Some(Snap {
             lat: best_lat,
             lng: best_lng,
-            distance: best_dist.sqrt() * 111_320.0,
+            distance: best_dist.sqrt() * EARTH_RADIUS_METERS,
         })
     }
 }
