@@ -154,6 +154,8 @@ static std::vector<AdminPolygon> admin_polygons;
 static std::vector<PolyTagInfo> poly_tag_info; // parallel to admin_polygons (build-time only)
 static std::vector<NodeCoord> admin_vertices;
 static std::unordered_map<uint64_t, std::vector<uint32_t>> cell_to_admin;
+static std::unordered_map<osmium::object_id_type, osmium::object_id_type> relation_labels;
+static std::unordered_map<osmium::object_id_type, address_levels::Semantic> label_semantics;
 
 // Place nodes (city/town/village/suburb points)
 static std::vector<PlaceNode> place_nodes;
@@ -535,6 +537,28 @@ static void add_admin_polygon(const std::vector<std::pair<double,double>>& verti
     }
 }
 
+// --- OSM handler (pass 1) ---
+
+class LabelHandler : public osmium::handler::Handler {
+public:
+    void relation(const osmium::Relation& relation) {
+        const char* boundary = relation.tags()["boundary"];
+        if (!boundary || std::strcmp(boundary, "administrative") != 0) return;
+
+        osmium::object_id_type label = 0;
+        for (const auto& member : relation.members()) {
+            if (member.type() != osmium::item_type::node
+                    || std::strcmp(member.role(), "label") != 0) continue;
+            if (label != 0) return; // Multiple labels are ambiguous.
+            label = member.ref();
+        }
+        if (label != 0) {
+            relation_labels[relation.id()] = label;
+            label_semantics.emplace(label, address_levels::Semantic::None);
+        }
+    }
+};
+
 // --- OSM handler (pass 2) ---
 
 class BuildHandler : public osmium::handler::Handler {
@@ -556,6 +580,12 @@ public:
 
         // Place node (city/town/village/suburb/hamlet/...)
         const char* place = node.tags()["place"];
+        if (place) {
+            auto it = label_semantics.find(node.id());
+            if (it != label_semantics.end()) {
+                it->second = address_levels::lookup_place(place, true /* polygon */);
+            }
+        }
         const char* name = node.tags()["name"];
         if (place && name) {
             uint32_t place_id = static_cast<uint32_t>(place_nodes.size());
@@ -633,6 +663,14 @@ public:
                 country_code = area.tags()["ISO3166-1:alpha2"];
                 if (!country_code) return;
                 semantic = address_levels::Semantic::Country;
+            } else {
+                semantic = address_levels::lookup_place(area.tags()["place"], true);
+                if (semantic == address_levels::Semantic::None && !area.from_way()) {
+                    auto it = relation_labels.find(area.orig_id());
+                    if (it != relation_labels.end()) {
+                        semantic = label_semantics.at(it->second);
+                    }
+                }
             }
         } else if (is_place) {
             const char* place = area.tags()["place"];
@@ -1160,6 +1198,7 @@ int main(int argc, char* argv[]) {
     // Reserve string offset 0 for the empty string (used as a "not present" marker).
     strings.intern("");
 
+    LabelHandler label_handler;
     BuildHandler handler;
 
     for (const auto& input_file : input_files) {
@@ -1173,7 +1212,7 @@ int main(int argc, char* argv[]) {
 
         {
             osmium::io::Reader reader1{input_file, osmium::osm_entity_bits::relation};
-            osmium::apply(reader1, mp_manager);
+            osmium::apply(reader1, label_handler, mp_manager);
             reader1.close();
             mp_manager.prepare_for_lookup();
         }
@@ -1198,6 +1237,10 @@ int main(int argc, char* argv[]) {
         reader2.close();
         close(fd);
         std::remove(tmp_path.c_str());
+        relation_labels.clear();
+        relation_labels.rehash(0);
+        label_semantics.clear();
+        label_semantics.rehash(0);
     }
 
     std::cerr << "Done reading:" << std::endl;
