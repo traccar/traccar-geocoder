@@ -238,14 +238,14 @@ static std::vector<std::pair<S2CellId, bool>> cover_polygon(const std::vector<st
         }
     }
 
-    // Only mark a cell as interior if all its neighbors are also interior.
+    // Only mark a cell as interior if all its edge and diagonal neighbors are also interior.
     // This erodes the interior by one cell from the border, avoiding
     // false positives from spherical/flat geometry mismatch near edges.
     std::unordered_set<uint64_t> safe_interior;
     for (uint64_t id : interior_set) {
         S2CellId cell(id);
-        S2CellId neighbors[4];
-        cell.GetEdgeNeighbors(neighbors);
+        std::vector<S2CellId> neighbors;
+        cell.AppendAllNeighbors(kAdminCellLevel, &neighbors);
         bool all_interior = true;
         for (const auto& n : neighbors) {
             if (interior_set.count(n.id()) == 0) {
